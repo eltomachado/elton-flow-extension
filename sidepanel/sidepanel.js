@@ -3,7 +3,7 @@ const CHAR_DELAY_MS = 50;
 // ─────────────────────────────────────────────
 // Update banner
 // ─────────────────────────────────────────────
-const LATEST_VERSION = "1.2.2"; // ← bump this each release
+const LATEST_VERSION = "1.2.3"; // ← bump this each release
 
 const promptsEl        = document.getElementById("prompts");
 const waitMinEl        = document.getElementById("waitMin");
@@ -470,8 +470,12 @@ async function downloadGeneratedImages(newUrls, serialNum, promptText) {
     const suffix   = newUrls.length > 1 ? `_${j + 1}` : "";
     const baseName = useSerial ? `${serial}_${name}` : name;
     const filename = `${folder}/${baseName}${suffix}.jpg`;
-    try { await chrome.downloads.download({ url, filename, saveAs: false }); }
-    catch (e) { console.warn("[ELTON FLOW] Download failed:", e); }
+    // Baixa pelo service worker: ele força o nome via onDeterminingFilename,
+    // senão o Content-Disposition do redirect do Flow impõe um nome UUID.
+    try {
+      const res = await chrome.runtime.sendMessage({ type: "ELTON_DOWNLOAD", url, filename });
+      if (!res?.ok) console.warn("[ELTON FLOW] Download failed:", res?.error);
+    } catch (e) { console.warn("[ELTON FLOW] Download failed:", e); }
   }
 }
 

@@ -10,6 +10,26 @@ chrome.runtime.onStartup.addListener(() => {
   });
 });
 
+/* ── Forçar o nome do arquivo no download das imagens ─────────────────
+ * O src da imagem gerada no Flow é um endpoint de redirect
+ * (…/media.getMediaUrlRedirect?name=UUID) cujo Content-Disposition impõe
+ * um nome UUID e ATROPELA o filename passado em downloads.download().
+ * onDeterminingFilename é a palavra final do Chrome sobre o nome — sempre
+ * vence o Content-Disposition. Guardamos o nome desejado por URL e o
+ * aplicamos aqui. Sem isso, o arquivo sai como 941b6f11-….jpg e perde o
+ * timestamp usado pra sincronizar com o áudio.
+ * ---------------------------------------------------------------- */
+const eltonDownloadNames = new Map(); // url -> filename desejado
+
+chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
+  const want = eltonDownloadNames.get(item.url) || eltonDownloadNames.get(item.finalUrl);
+  if (!want) return false; // não é um download nosso — deixa o Chrome decidir
+  eltonDownloadNames.delete(item.url);
+  eltonDownloadNames.delete(item.finalUrl);
+  suggest({ filename: want, conflictAction: "uniquify" });
+  return true;
+});
+
 /* ── MAIN world React fiber submit ───────────────────────────────────
  * chrome.scripting.executeScript with world:"MAIN" bypasses the page's
  * CSP and runs in the same JS context as React / Slate.
@@ -131,6 +151,20 @@ function mainWorldAgentClick() {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === "ELTON_DOWNLOAD") {
+    // Registra o nome desejado pra URL e dispara o download. O onDeterminingFilename
+    // acima força esse nome; o filename aqui é um reforço (fallback).
+    eltonDownloadNames.set(msg.url, msg.filename);
+    chrome.downloads
+      .download({ url: msg.url, filename: msg.filename, saveAs: false })
+      .then((id) => sendResponse({ ok: true, id }))
+      .catch((e) => {
+        eltonDownloadNames.delete(msg.url);
+        sendResponse({ ok: false, error: String(e?.message || e) });
+      });
+    return true;
+  }
+
   if (msg?.type === "MAIN_WORLD_AGENT_CLICK") {
     const tabId = sender.tab?.id;
     if (!tabId) { sendResponse({ ok: false, reason: "no tab id" }); return; }
