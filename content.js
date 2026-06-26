@@ -648,14 +648,35 @@
     return { done: true, completed: prompts.length };
   }
 
-  // Count failure cards by the "Retry" span inside a button
-  // This span ONLY appears on Google Flow failure cards
+  // Count failure cards by the "Retry" span inside a button.
+  // O texto é localizado pelo Flow (PT/ES/FR/DE...), então cobrimos as variações.
+  const RETRY_LABELS = /^(retry|tentar novamente|reintentar|réessayer|wiederholen|riprova)$/i;
   function countFailCards() {
     var n = 0;
     document.querySelectorAll("button span").forEach(function(span) {
-      if (span.children.length === 0 && span.textContent.trim() === "Retry") n++;
+      if (span.children.length === 0 && RETRY_LABELS.test(span.textContent.trim())) n++;
     });
     return n;
+  }
+
+  // Imagens geradas pelo Flow. O atributo alt é LOCALIZADO ("Generated image" em
+  // inglês, "Imagem gerada" em PT, "Imagen generada" em ES...), por isso casamos
+  // as variações conhecidas E, como rede de segurança independente de idioma,
+  // qualquer <img> servida pelo próprio Flow (host labs.google) com tamanho de
+  // imagem real — o avatar do usuário vem de googleusercontent e fica de fora.
+  const GENERATED_ALT = /generated image|imagem gerada|imagen generada|image g[eé]n[eé]r[eé]e|generiertes bild|immagine generata/i;
+  function getGeneratedImgs() {
+    return Array.from(document.querySelectorAll("img")).filter(function (img) {
+      const alt = img.getAttribute("alt") || "";
+      if (GENERATED_ALT.test(alt)) return true;
+      const src = img.src || "";
+      if (!/^https?:/.test(src)) return false;
+      let host = "";
+      try { host = new URL(src).host; } catch { return false; }
+      if (!host.includes("labs.google")) return false;
+      const r = img.getBoundingClientRect();
+      return r.width >= 200 && r.height >= 150;
+    });
   }
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -720,8 +741,7 @@
     }
 
     if (message?.type === "FLOW_GET_TILE_COUNT") {
-      const imgs = Array.from(document.querySelectorAll('img[alt="Generated image"]'));
-      const realSrcs = imgs.map(img => img.src).filter(src => src && src.startsWith('http'));
+      const realSrcs = getGeneratedImgs().map(img => img.src).filter(src => src && src.startsWith('http'));
       sendResponse({
         count: realSrcs.length,
         srcs: realSrcs,
@@ -742,13 +762,13 @@
 
       // Só imagens com src HTTP real, em ordem do DOM, ainda não baixadas
       function getNewImageUrls() {
-        return Array.from(document.querySelectorAll('img[alt="Generated image"]'))
+        return getGeneratedImgs()
           .map(img => img.src)
           .filter(src => src && src.startsWith('http') && !seen.has(src));
       }
 
       function triggerLazyLoad() {
-        const imgs = document.querySelectorAll('img[alt="Generated image"]');
+        const imgs = getGeneratedImgs();
         if (imgs.length > 0) {
           imgs[imgs.length - 1].scrollIntoView({ behavior: 'instant', block: 'nearest' });
         }

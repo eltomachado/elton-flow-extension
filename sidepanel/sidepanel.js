@@ -3,7 +3,7 @@ const CHAR_DELAY_MS = 50;
 // ─────────────────────────────────────────────
 // Update banner
 // ─────────────────────────────────────────────
-const LATEST_VERSION = "1.2.1"; // ← bump this each release
+const LATEST_VERSION = "1.2.2"; // ← bump this each release
 
 const promptsEl        = document.getElementById("prompts");
 const waitMinEl        = document.getElementById("waitMin");
