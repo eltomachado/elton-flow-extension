@@ -758,6 +758,31 @@
         return countFailCards() > beforeFailCount;
       }
 
+      // Texto do card de erro do Flow — pra mostrar o MOTIVO real ao usuário
+      // (ex.: limite/cota atingido) em vez de um "falhou" genérico.
+      function getFailReason() {
+        let reason = "";
+        document.querySelectorAll("button span").forEach(function (span) {
+          if (span.children.length === 0 && span.textContent.trim() === "Retry") {
+            let node = span.closest("div");
+            for (let up = 0; up < 4 && node && node.parentElement; up++) node = node.parentElement;
+            const txt = (node ? node.innerText : "")
+              .replace(/\s+/g, " ").replace(/\bRetry\b/g, "").trim();
+            if (txt) reason = txt.slice(0, 160);
+          }
+        });
+        return reason;
+      }
+
+      // Só considera FALHA se NÃO apareceu imagem nova junto. O Flow às vezes
+      // mostra um "Retry" por um instante enquanto a imagem ainda carrega; se a
+      // imagem veio, isso é SUCESSO, não erro — evita parar a fila à toa.
+      function handleFailure() {
+        if (getNewImageUrls().length > 0) return false;
+        finish({ failed: true, reason: getFailReason() });
+        return true;
+      }
+
       let resolved = false;
       let settleTimer = null;
       let lastSeenCount = -1;
@@ -791,20 +816,23 @@
       }
 
       triggerLazyLoad();
-      if (hasNewFailure()) { sendResponse({ failed: true }); return; }
+      if (hasNewFailure() && getNewImageUrls().length === 0) {
+        sendResponse({ failed: true, reason: getFailReason() });
+        return;
+      }
       considerSettle();
 
       const timer = setTimeout(() => finish({ timeout: true }), timeout);
 
       const pollInterval = setInterval(function() {
         triggerLazyLoad();
-        if (hasNewFailure()) finish({ failed: true });
-        else considerSettle();
+        if (hasNewFailure() && handleFailure()) return;
+        considerSettle();
       }, 1500);
 
       const observer = new MutationObserver(function() {
-        if (hasNewFailure()) finish({ failed: true });
-        else considerSettle();
+        if (hasNewFailure() && handleFailure()) return;
+        considerSettle();
       });
 
       observer.observe(document.body, {

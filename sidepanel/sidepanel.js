@@ -3,7 +3,7 @@ const CHAR_DELAY_MS = 50;
 // ─────────────────────────────────────────────
 // Update banner
 // ─────────────────────────────────────────────
-const LATEST_VERSION = "1.2.0"; // ← bump this each release
+const LATEST_VERSION = "1.2.1"; // ← bump this each release
 
 const promptsEl        = document.getElementById("prompts");
 const waitMinEl        = document.getElementById("waitMin");
@@ -682,7 +682,9 @@ async function startQueue(startIndex = 0, onlyIndices = null) {
         if (attempt < 1) continue; // will show countdown at top of loop
         // Both attempts failed — mark failed, move to next prompt
         updateStatus(i, "failed");
-        setStatus(`Prompt ${i + 1} failed after retry — moving to next.`);
+        const why = genRes?.reason ? ` — Flow: "${genRes.reason}"`
+                  : genRes?.timeout ? " (tempo esgotado)" : "";
+        setStatus(`Prompt ${i + 1} falhou${why}. Seguindo para o próximo.`);
         promptDone = true; // continue queue
         break;
       }

@@ -4,7 +4,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "114",
   "name": "ELTON FLOW",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Queue prompts for bulk image generation on Google Flow (labs.google/fx/tools/flow).",
   "icons": {
     "16": "icons/icon-16.png",
